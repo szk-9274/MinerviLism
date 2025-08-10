@@ -8,14 +8,15 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-try:  # Attempt absolute import when package is installed
+# パッケージ/単体スクリプト両対応
+try:
     from stage_app.stage import (
         STAGE_COLORS,
         classify_stages,
         compute_indicators,
         fetch_price_data,
     )
-except ModuleNotFoundError:  # Fallback for running as a script
+except ModuleNotFoundError:
     from stage import (
         STAGE_COLORS,
         classify_stages,
@@ -25,11 +26,18 @@ except ModuleNotFoundError:  # Fallback for running as a script
 
 st.set_page_config(layout="wide")
 
+TICKER_DEFAULT = "NVDA"
 
-def build_chart(df: pd.DataFrame) -> go.Figure:
+@st.cache_data(ttl=1800)
+def cached_fetch(ticker: str, lookback_days: int) -> pd.DataFrame:
+    # stage.py 側の fetch は OHLC を返す堅牢版になっている想定
+    return fetch_price_data(ticker, lookback_days=lookback_days)
+
+def build_chart(df: pd.DataFrame, ticker_label: str) -> go.Figure:
     if df.empty:
         raise ValueError("No rows with computed Stage yet. Need enough data to compute indicators.")
 
+    # Candlestick（hovertemplateは未対応なので hovertext を使う）
     fig = go.Figure(
         data=[
             go.Candlestick(
@@ -38,72 +46,93 @@ def build_chart(df: pd.DataFrame) -> go.Figure:
                 high=df["High"],
                 low=df["Low"],
                 close=df["Close"],
-                name="NVDA",
+                name=ticker_label,
                 customdata=df["Stage"],
-                hovertemplate="Open %{open:.2f}<br>High %{high:.2f}<br>Low %{low:.2f}<br>Close %{close:.2f}<br>Stage %{customdata}<extra></extra>",
+                hovertext=[
+                    f"Open {o:.2f}<br>High {h:.2f}<br>Low {l:.2f}<br>Close {c:.2f}<br>Stage {int(s) if pd.notna(s) else 'NA'}"
+                    for o, h, l, c, s in zip(
+                        df["Open"], df["High"], df["Low"], df["Close"], df["Stage"]
+                    )
+                ],
+                hoverinfo="text",
             )
         ]
     )
 
-    # 月ごとの区間塗り分け。月末のステージで代表させる。
-    groups = df.groupby(df.index.to_period("M"))
-    bounds = [(g.index[0], g.index[-1]) for _, g in groups]
-    month_ends = [b[1] for b in bounds]
-    stage_last = df["Stage"].resample("M").last().reindex(month_ends)
-    for (start, end), stage in zip(bounds, stage_last):
-        color = STAGE_COLORS.get(stage, "white")
+    # 月ごと代表ステージ＝最頻値（mode）で色帯
+    monthly = df["Stage"].resample("MS").apply(
+        lambda s: s.mode().iloc[0] if not s.dropna().empty else np.nan
+    )
+    month_starts = monthly.index.to_list()
+    for i, ms in enumerate(month_starts):
+        stg = monthly.iloc[i]
+        if pd.isna(stg):
+            continue
+        x0 = ms
+        x1 = month_starts[i + 1] if i + 1 < len(month_starts) else df.index[-1]
+        color = STAGE_COLORS.get(int(stg), "white")
         fig.add_vrect(
-            x0=start,
-            x1=end,
-            fillcolor=color,
-            opacity=0.1,
-            line_width=0,
-            layer="below",
+            x0=x0, x1=x1, fillcolor=color, opacity=0.10, line_width=0, layer="below"
         )
 
-    fig.update_layout(margin=dict(l=20, r=20, t=40, b=40), xaxis_rangeslider_visible=False)
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=40, b=40),
+        xaxis_rangeslider_visible=False,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
     return fig
 
 
-
 def main() -> None:
+    # ===== サイドバー =====
     st.sidebar.header("Settings")
-    st.sidebar.markdown("Ticker: NVDA")
+    ticker = st.sidebar.text_input("Ticker", TICKER_DEFAULT).strip().upper()
+    years = st.sidebar.number_input("期間（年数）", min_value=1, max_value=10, value=1, step=1)
+    run_btn = st.sidebar.button("Run")
+
     st.sidebar.markdown("### Stage Colors")
     for s, c in STAGE_COLORS.items():
         st.sidebar.markdown(
             f"<span style='background-color:{c};padding:2px 8px;border-radius:3px;color:white;'>Stage {s}</span>",
             unsafe_allow_html=True,
         )
-    ticker = "NVDA"
+
+    if not run_btn:
+        st.info("左の設定を選んで『Run』を押してください。")
+        return
+    if not ticker:
+        st.warning("ティッカーを入力してください。")
+        return
 
     pbar = st.progress(0)
     steps = 4
-    start_time = perf_counter()
+    t0 = perf_counter()
 
     try:
-        # 1. Downloading data
+        # 1) データ取得（年数→暦日換算。余裕を持って365*years日）
         with st.spinner("Downloading data..."):
-            data = fetch_price_data(ticker)
+            lookback_days = int(years * 365)
+            data = cached_fetch(ticker, lookback_days=lookback_days)
         pbar.progress(int(1 * 100 / steps))
 
-        # 2. Computing indicators
+        # 2) 指標計算（Closeベース）
         with st.spinner("Computing indicators..."):
             df = compute_indicators(data)
         pbar.progress(int(2 * 100 / steps))
 
-        # 3. Classifying stages
+        # 3) ステージ分類
         with st.spinner("Classifying stages..."):
             df["Stage"] = classify_stages(df)
         pbar.progress(int(3 * 100 / steps))
 
-        # 4. Rendering chart
+        # 4) 描画
         with st.spinner("Rendering chart..."):
-            df_plot = df.dropna(subset=["Stage"]).copy()
+            need = ["Open", "High", "Low", "Close", "Stage"]
+            df_plot = df.dropna(subset=need).copy()
             if df_plot.empty:
                 st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")
             else:
-                fig = build_chart(df_plot)
+                fig = build_chart(df_plot, ticker)
                 st.plotly_chart(fig, use_container_width=True)
 
             tbl = (
@@ -114,10 +143,9 @@ def main() -> None:
             st.dataframe(tbl)
 
         pbar.progress(100)
+        st.write(f"Completed in {perf_counter() - t0:.2f}s")
 
-        total = perf_counter() - start_time
-        st.write(f"Completed in {total:.2f}s")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # 取得失敗や列欠損などはここで通知
         st.warning(str(exc))
 
 

@@ -13,40 +13,60 @@ STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
 
 @st.cache_data(ttl=3600)
-def fetch_price_data(ticker: str = "NVDA", lookback_days: int = 380) -> pd.DataFrame:
-    """Fetch OHLC data for ``ticker`` and keep the latest 252 trading days.
+# stage_app/stage.py の fetch_price_data を差し替え
 
-    Columns are flattened if a MultiIndex is returned by ``yfinance`` and only
-    ``Open``, ``High``, ``Low``, ``Close`` and ``Volume`` are kept. Raises
-    ``ValueError`` if fewer than 200 rows remain after trimming.
-    """
+def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
+    """Return OHLC for last ~1y (252 trading days). Robust to Yahoo quirks."""
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days)
-    data = yf.download(
-        ticker,
-        start=start,
-        end=end,
-        progress=False,
-        auto_adjust=True,
-    )
-    if data.empty:
-        raise ValueError("No data returned.")
 
-    data = data.tail(252)
-    if len(data) < 200:
-        raise ValueError(
-            "Not enough data to compute SMA200; need at least 200 trading days."
+    # 1) まず Ticker().history() を試す（こっちの方が列崩れしにくい）
+    try:
+        data = yf.Ticker(ticker).history(
+            start=start, end=end, auto_adjust=True, interval="1d"
+        )
+    except Exception:
+        data = pd.DataFrame()
+
+    # 2) ダメなら download() にフォールバック
+    if data is None or data.empty:
+        data = yf.download(
+            ticker, start=start, end=end, auto_adjust=True, progress=False, interval="1d"
         )
 
-    if isinstance(data.columns, pd.MultiIndex):
-        # Flatten MultiIndex columns (e.g. ('Close', 'NVDA') -> 'Close')
-        data.columns = data.columns.get_level_values(0)
+    if data is None or data.empty:
+        raise ValueError("No data returned from Yahoo Finance.")
 
-    required = ["Open", "High", "Low", "Close", "Volume"]
-    missing = [c for c in required if c not in data.columns]
-    if missing:
-        raise ValueError(f"Downloaded data missing columns: {missing}")
-    return data[required]
+    # 列をフラット化
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(-1)
+
+    # 列名の大小文字ぶれ対策
+    cols = {c.lower(): c for c in data.columns}
+    have = {k: cols.get(k) for k in ["open", "high", "low", "close"]}
+
+    # 3) OHLC が揃っていればそれを使用
+    if all(have.values()):
+        data = data[[have["open"], have["high"], have["low"], have["close"]]]
+        data.columns = ["Open", "High", "Low", "Close"]
+    else:
+        # 4) 最低限のフォールバック：Close から擬似 OHLC を作る
+        #    （ローソク足は描けるが上下ヒゲは出ない）
+        close_col = have["close"] or cols.get("adj close") or cols.get("adjclose")
+        if not close_col:
+            raise ValueError(f"Downloaded data missing columns: ['Open','High','Low','Close']")
+        c = data[close_col].astype(float)
+        data = pd.DataFrame(
+            {"Open": c, "High": c, "Low": c, "Close": c}, index=data.index
+        )
+
+    # 直近252本に絞る
+    data = data.tail(252)
+    if len(data) < 200:
+        raise ValueError("Not enough data to compute SMA200; need ≥200 trading days.")
+    data.index.name = "Date"
+    return data
+
 
 
 def _sma_slope(series: pd.Series, window: int) -> pd.Series:
