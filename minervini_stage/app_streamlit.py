@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import streamlit as st
 
-from .indicators import compute_indicators
-from .io_utils import LoadConfig, load_data
-from .plotter import plot_stages, plot_vcp
-from .stage_rules import StageConfig, classify_stage
-from .vcp import VCPConfig, detect_vcp
+try:  # pragma: no cover - runtime import fix
+    from .indicators import compute_indicators
+    from .io_utils import LoadConfig, load_data
+    from .plotter import plot_stages, plot_vcp
+    from .stage_rules import StageConfig, classify_stage
+    from .vcp import VCPConfig, detect_vcp
+except ImportError:  # executed when run as a script outside the package
+    from indicators import compute_indicators
+    from io_utils import LoadConfig, load_data
+    from plotter import plot_stages, plot_vcp
+    from stage_rules import StageConfig, classify_stage
+    from vcp import VCPConfig, detect_vcp
 
 
 def main() -> None:
