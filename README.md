@@ -1,23 +1,28 @@
+# Minervini Stage Module
 
-# 10-Year Stock Replay & Savings Overlay
+Utilities for classifying market stages and detecting Minervini Volatility Contraction Patterns (VCP).
 
-Supports both English and Japanese interfaces. Use the sidebar to switch languages.
-You can also toggle between desktop and mobile layouts from the sidebar.
+## Quick start
 
-The ticker selector includes popular U.S. stocks and Bitcoin by default, and you can
-enter any other Yahoo Finance symbol manually. Leaving the ticker blank shows a
-friendly warning instead of an error.
-
-The savings model now renders a visible blue line starting from zero, making it
-easy to compare contributions against price performance.
-
-## Setup
 ```bash
-python -m venv venv
-venv\Scripts\activate  # Windows
-# or
-source venv/bin/activate  # macOS/Linux
+pip install -e .
+python -m minervini_stage.cli classify --ticker SPY --years 10 --out stages.csv
+python -m minervini_stage.cli vcp --ticker AAPL --years 5 --json vcp.json
+python -m minervini_stage.cli plot --ticker TSLA --years 5 --out chart.png --with-vcp
+```
 
-pip install -r requirements.txt
-streamlit run app.py
+Run Streamlit viewer:
+
+```bash
+streamlit run minervini_stage/app_streamlit.py
+```
+
+## Parameters
+
+All thresholds are exposed via configuration classes (`StageConfig`, `VCPConfig`, `IndicatorConfig`).
+
+## Testing
+
+```bash
+pytest -q
 ```
