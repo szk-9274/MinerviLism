@@ -26,9 +26,39 @@ except ModuleNotFoundError:  # Fallback for running as a script
 st.set_page_config(layout="wide")
 
 
-def build_chart(df: pd.DataFrame) -> go.Figure:
+CHOICES = {
+    "NVIDIA (NVDA)": "NVDA",
+    "Apple (AAPL)": "AAPL",
+    "Microsoft (MSFT)": "MSFT",
+    "Amazon (AMZN)": "AMZN",
+    "Alphabet (GOOGL)": "GOOGL",
+    "Meta (META)": "META",
+    "Tesla (TSLA)": "TSLA",
+    "Bitcoin (BTC-USD)": "BTC-USD",
+}
+
+
+@st.cache_data(ttl=1800)
+def cached_fetch(ticker: str, lookback_days: int) -> pd.DataFrame:
+    return fetch_price_data(ticker, lookback_days=lookback_days)
+
+
+def build_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
     if df.empty:
         raise ValueError("No rows with computed Stage yet. Need enough data to compute indicators.")
+
+    hovertext = (
+        "Open "
+        + df["Open"].round(2).astype(str)
+        + "<br>High "
+        + df["High"].round(2).astype(str)
+        + "<br>Low "
+        + df["Low"].round(2).astype(str)
+        + "<br>Close "
+        + df["Close"].round(2).astype(str)
+        + "<br>Stage "
+        + df["Stage"].astype(int).astype(str)
+    )
 
     fig = go.Figure(
         data=[
@@ -38,19 +68,33 @@ def build_chart(df: pd.DataFrame) -> go.Figure:
                 high=df["High"],
                 low=df["Low"],
                 close=df["Close"],
-                name="NVDA",
-                customdata=df["Stage"],
-                hovertemplate="Open %{open:.2f}<br>High %{high:.2f}<br>Low %{low:.2f}<br>Close %{close:.2f}<br>Stage %{customdata}<extra></extra>",
+                name=ticker,
+                text=hovertext,
+                hoverinfo="text",
             )
         ]
     )
 
-    # 月ごとの区間塗り分け。月末のステージで代表させる。
+    for name, color in [
+        ("SMA25", "blue"),
+        ("SMA50", "orange"),
+        ("SMA200", "purple"),
+    ]:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df[name],
+                name=name,
+                mode="lines",
+                line=dict(color=color),
+            )
+        )
+
+    # 月ごとの区間塗り分け。月内の最頻値ステージを代表値として採用。
     groups = df.groupby(df.index.to_period("M"))
     bounds = [(g.index[0], g.index[-1]) for _, g in groups]
-    month_ends = [b[1] for b in bounds]
-    stage_last = df["Stage"].resample("M").last().reindex(month_ends)
-    for (start, end), stage in zip(bounds, stage_last):
+    stage_mode = groups["Stage"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else np.nan).values
+    for (start, end), stage in zip(bounds, stage_mode):
         color = STAGE_COLORS.get(stage, "white")
         fig.add_vrect(
             x0=start,
@@ -68,47 +112,51 @@ def build_chart(df: pd.DataFrame) -> go.Figure:
 
 def main() -> None:
     st.sidebar.header("Settings")
-    st.sidebar.markdown("Ticker: NVDA")
+    label = st.sidebar.selectbox("Ticker", list(CHOICES.keys()), index=0)
+    ticker = CHOICES[label]
+    years = st.sidebar.number_input("期間（年数）", 1, 10, 1, 1)
+    run_btn = st.sidebar.button("Run")
     st.sidebar.markdown("### Stage Colors")
     for s, c in STAGE_COLORS.items():
         st.sidebar.markdown(
             f"<span style='background-color:{c};padding:2px 8px;border-radius:3px;color:white;'>Stage {s}</span>",
             unsafe_allow_html=True,
         )
-    ticker = "NVDA"
 
     pbar = st.progress(0)
     steps = 4
     start_time = perf_counter()
 
     try:
-        # 1. Downloading data
-        with st.spinner("Downloading data..."):
-            data = fetch_price_data(ticker)
-        pbar.progress(int(1 * 100 / steps))
+        if run_btn or "df" not in st.session_state:
+            lookback_days = int(years * 365)
+            with st.spinner("Downloading data..."):
+                data = cached_fetch(ticker, lookback_days)
+            pbar.progress(int(1 * 100 / steps))
 
-        # 2. Computing indicators
-        with st.spinner("Computing indicators..."):
-            df = compute_indicators(data)
-        pbar.progress(int(2 * 100 / steps))
+            with st.spinner("Computing indicators..."):
+                df = compute_indicators(data)
+            pbar.progress(int(2 * 100 / steps))
 
-        # 3. Classifying stages
-        with st.spinner("Classifying stages..."):
-            df["Stage"] = classify_stages(df)
-        pbar.progress(int(3 * 100 / steps))
+            with st.spinner("Classifying stages..."):
+                df["Stage"] = classify_stages(df)
+            pbar.progress(int(3 * 100 / steps))
 
-        # 4. Rendering chart
+            df = df.dropna(subset=["Open", "High", "Low", "Close", "Stage"])
+            st.session_state["df"] = df
+
+        df = st.session_state.get("df", pd.DataFrame())
+
         with st.spinner("Rendering chart..."):
-            df_plot = df.dropna(subset=["Stage"]).copy()
-            if df_plot.empty:
+            if df.empty:
                 st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")
             else:
-                fig = build_chart(df_plot)
+                fig = build_chart(df, ticker)
                 st.plotly_chart(fig, use_container_width=True)
 
             tbl = (
-                df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]]
-                .dropna(subset=["SMA50", "SMA150", "SMA200", "Stage"])
+                df[["Close", "SMA25", "SMA50", "SMA200", "Stage"]]
+                .dropna(subset=["SMA25", "SMA50", "SMA200", "Stage"])
                 .tail(10)
             )
             st.dataframe(tbl)

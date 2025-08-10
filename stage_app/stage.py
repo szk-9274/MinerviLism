@@ -5,14 +5,11 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 import yfinance as yf
 
 
 STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
-
-@st.cache_data(ttl=3600)
 def fetch_price_data(ticker: str = "NVDA", lookback_days: int = 380) -> pd.DataFrame:
     """Fetch OHLC data for ``ticker`` and keep the latest 252 trading days.
 
@@ -62,6 +59,7 @@ def _sma_slope(series: pd.Series, window: int) -> pd.Series:
 def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFrame:
     """Compute moving averages and 52w high/low."""
     df = data.copy()
+    df["SMA25"] = df["Close"].rolling(25).mean()
     df["SMA50"] = df["Close"].rolling(50).mean()
     df["SMA150"] = df["Close"].rolling(150).mean()
     df["SMA200"] = df["Close"].rolling(200).mean()
