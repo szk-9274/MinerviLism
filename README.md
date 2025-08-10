@@ -1,28 +1,19 @@
-# Minervini Stage Module
+# Stage App (1Y)
 
-Utilities for classifying market stages and detecting Minervini Volatility Contraction Patterns (VCP).
+Streamlit application for Minervini-style market stage classification over the
+most recent year.
 
 ## Quick start
 
 ```bash
-pip install -e .
-python -m minervini_stage.cli classify --ticker SPY --years 10 --out stages.csv
-python -m minervini_stage.cli vcp --ticker AAPL --years 5 --json-out vcp.json
-python -m minervini_stage.cli plot --ticker TSLA --years 5 --out chart.png --with-vcp
+python -m venv venv
+venv\Scripts\activate         # on Windows (or: source venv/bin/activate on macOS/Linux)
+pip install -r requirements.txt
+streamlit run stage_app/app.py
 ```
 
-Run Streamlit viewer:
+## Optional CLI
 
 ```bash
-streamlit run minervini_stage/app_streamlit.py
-```
-
-## Parameters
-
-All thresholds are exposed via configuration classes (`StageConfig`, `VCPConfig`, `IndicatorConfig`).
-
-## Testing
-
-```bash
-pytest -q
+python -m stage_app.cli classify --ticker SPY --csv-out stages_1y.csv --suppress-warnings
 ```
