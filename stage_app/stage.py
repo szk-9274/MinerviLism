@@ -35,7 +35,19 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
         raise ValueError(
             "Not enough data to compute SMA200; need at least 200 trading days."
         )
-    return data[["Close"]]
+
+    if isinstance(data.columns, pd.MultiIndex):
+        close = data.xs("Close", axis=1, level=0)
+        if isinstance(close, pd.Series):
+            close = close.to_frame("Close")
+        else:
+            close.columns = ["Close"]
+        data = close
+    else:
+        if "Close" not in data.columns:
+            raise ValueError("Downloaded data missing 'Close' column.")
+        data = data[["Close"]]
+    return data
 
 
 def _sma_slope(series: pd.Series, window: int) -> pd.Series:
