@@ -31,6 +31,12 @@ def load_data(config: LoadConfig) -> pd.DataFrame:
         raise ValueError("ticker must be provided when csv_path is not set")
     period = f"{config.years}y"
     data = yf.download(config.ticker, period=period, auto_adjust=True, progress=False)
+    # yfinance may return a MultiIndex with ticker symbols even when a single
+    # ticker is requested.  This prevents downstream indicator calculations
+    # from aligning correctly.  Flatten to a simple Index so that columns like
+    # ``Close`` are Series rather than DataFrames.
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
     data = data.rename(columns=str.title)
     data = data[["Open", "High", "Low", "Close", "Volume"]]
     return data
