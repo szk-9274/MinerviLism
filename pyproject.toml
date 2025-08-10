@@ -1,0 +1,17 @@
+[project]
+name = "minervini-stage"
+version = "0.1.0"
+description = "Minervini stage classification and VCP detection"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "numpy",
+    "yfinance",
+    "matplotlib",
+    "typer",
+    "streamlit",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
