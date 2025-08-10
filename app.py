@@ -13,6 +13,10 @@ translations = {
     "en": {
         "app_title": "📈 10-Year Stock Replay & Savings Overlay",
         "settings": "Settings",
+        "display_mode": "Display mode",
+        "desktop": "Desktop",
+        "mobile": "Mobile",
+        "advanced_options": "Advanced options",
         "ticker_input": "Ticker (Yahoo Finance symbol)",
         "years_of_history": "Years of history",
         "end_date": "End date",
@@ -42,6 +46,10 @@ translations = {
     "ja": {
         "app_title": "📈 10年間株価再生と貯蓄の重ね合わせ",
         "settings": "設定",
+        "display_mode": "表示モード",
+        "desktop": "PC",
+        "mobile": "スマホ",
+        "advanced_options": "詳細設定",
         "ticker_input": "ティッカー（Yahoo Financeのシンボル）",
         "years_of_history": "表示年数",
         "end_date": "終了日",
@@ -76,6 +84,9 @@ lang = LANG_OPTIONS[lang_display]
 def t(key, **kwargs):
     return translations.get(lang, translations["en"]).get(key, translations["en"].get(key, key)).format(**kwargs)
 
+display_mode = st.sidebar.radio(t("display_mode"), options=[t("desktop"), t("mobile")], index=0)
+is_mobile = display_mode == t("mobile")
+
 st.title(t("app_title"))
 
 with st.sidebar:
@@ -89,8 +100,13 @@ with st.sidebar:
     monthly_contrib = st.number_input(t("monthly_contrib"), min_value=0.0, value=30000.0, step=1000.0, format="%.0f")
     annual_interest = st.number_input(t("annual_interest"), min_value=0.0, max_value=20.0, value=0.5, step=0.1)
     normalize = st.checkbox(t("normalize"), value=True)
-    fps = st.slider(t("fps"), min_value=1, max_value=20, value=6)
-    frame_step = st.selectbox(t("frame_granularity"), options=[t("monthly"), t("quarterly"), t("yearly")], index=0)
+    if is_mobile:
+        with st.expander(t("advanced_options")):
+            fps = st.slider(t("fps"), min_value=1, max_value=20, value=6)
+            frame_step = st.selectbox(t("frame_granularity"), options=[t("monthly"), t("quarterly"), t("yearly")], index=0)
+    else:
+        fps = st.slider(t("fps"), min_value=1, max_value=20, value=6)
+        frame_step = st.selectbox(t("frame_granularity"), options=[t("monthly"), t("quarterly"), t("yearly")], index=0)
 
 @st.cache_data
 def load_prices(ticker, start, end):
@@ -199,11 +215,17 @@ fig = go.Figure(
 )
 
 st.plotly_chart(fig, use_container_width=True)
-col1, col2, col3 = st.columns(3)
-with col1:
+if is_mobile:
     st.metric(t("price_change"), f"{(df['price'].iloc[-1]/df['price'].iloc[0]-1)*100:.2f}%")
-with col2:
     total_months = len(pd.date_range(start=df.index.min(), end=df.index.max(), freq='ME'))
     st.metric(t("total_contrib"), f"{(monthly_contrib * total_months):,.0f}")
-with col3:
     st.metric(t("savings_balance"), f"{df['savings'].iloc[-1]:,.0f}")
+else:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(t("price_change"), f"{(df['price'].iloc[-1]/df['price'].iloc[0]-1)*100:.2f}%")
+    with col2:
+        total_months = len(pd.date_range(start=df.index.min(), end=df.index.max(), freq='ME'))
+        st.metric(t("total_contrib"), f"{(monthly_contrib * total_months):,.0f}")
+    with col3:
+        st.metric(t("savings_balance"), f"{df['savings'].iloc[-1]:,.0f}")

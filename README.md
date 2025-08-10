@@ -2,6 +2,7 @@
 # 10-Year Stock Replay & Savings Overlay
 
 Supports both English and Japanese interfaces. Use the sidebar to switch languages.
+You can also toggle between desktop and mobile layouts from the sidebar.
 
 ## Setup
 ```bash
