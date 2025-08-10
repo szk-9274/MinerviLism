@@ -7,21 +7,90 @@ import yfinance as yf
 from datetime import date, timedelta
 
 st.set_page_config(page_title="10-Year Stock Replay & Savings Overlay", layout="wide")
-st.title("📈 10-Year Stock Replay & Savings Overlay")
+
+LANG_OPTIONS = {"English": "en", "日本語": "ja"}
+translations = {
+    "en": {
+        "app_title": "📈 10-Year Stock Replay & Savings Overlay",
+        "settings": "Settings",
+        "ticker_input": "Ticker (Yahoo Finance symbol)",
+        "years_of_history": "Years of history",
+        "end_date": "End date",
+        "start_date": "Start date",
+        "savings_model": "Savings model",
+        "monthly_contrib": "Monthly contribution",
+        "annual_interest": "Annual interest (%)",
+        "normalize": "Normalize to 100 at start",
+        "fps": "Playback speed (frames/sec)",
+        "frame_granularity": "Frame granularity",
+        "monthly": "Monthly",
+        "quarterly": "Quarterly",
+        "yearly": "Yearly",
+        "no_price_data": "No price data found. Check the ticker or date range.",
+        "price_change": "Price change",
+        "total_contrib": "Total contributions",
+        "savings_balance": "Savings balance",
+        "play": "\u25b6 Play",
+        "pause": "\u23f8 Pause",
+        "up_to": "Up to: ",
+        "indexed_title": "Indexed to 100",
+        "price_savings_title": "Price / Savings",
+        "replay_title": "{ticker} — {years}Y Replay with Savings Overlay",
+        "date": "Date",
+        "savings_label": "Savings"
+    },
+    "ja": {
+        "app_title": "\ud83d\udcc8 10年間株価再生と貯蓄の重ね合わせ",
+        "settings": "設定",
+        "ticker_input": "ティッカー（Yahoo Financeのシンボル）",
+        "years_of_history": "表示年数",
+        "end_date": "終了日",
+        "start_date": "開始日",
+        "savings_model": "貯蓄モデル",
+        "monthly_contrib": "毎月の積立額",
+        "annual_interest": "年利（％）",
+        "normalize": "開始時100で正規化",
+        "fps": "再生速度（フレーム/秒）",
+        "frame_granularity": "フレーム粒度",
+        "monthly": "月次",
+        "quarterly": "四半期",
+        "yearly": "年次",
+        "no_price_data": "価格データがありません。ティッカーや日付範囲を確認してください。",
+        "price_change": "価格変化",
+        "total_contrib": "総積立額",
+        "savings_balance": "貯蓄残高",
+        "play": "\u25b6 \u518d\u751f",
+        "pause": "\u23f8 \u4e00\u6642\u505c\u6b62",
+        "up_to": "\u3053\u3053\u307e\u3067: ",
+        "indexed_title": "\u958b\u59cb\u6642\u3092100\u3068\u3057\u3066\u6307\u6570\u5316",
+        "price_savings_title": "\u4fa1\u683c / \u8caf\u84c4",
+        "replay_title": "{ticker} — {years}年リプレイと貯蓄のオーバーレイ",
+        "date": "\u65e5\u4ed8",
+        "savings_label": "\u8caf\u84c4"
+    }
+}
+
+lang_display = st.sidebar.selectbox("Language / \u8a00\u8a9e", options=list(LANG_OPTIONS.keys()), index=0)
+lang = LANG_OPTIONS[lang_display]
+
+def t(key, **kwargs):
+    return translations.get(lang, translations["en"]).get(key, translations["en"].get(key, key)).format(**kwargs)
+
+st.title(t("app_title"))
 
 with st.sidebar:
-    st.header("Settings")
-    ticker = st.text_input("Ticker (Yahoo Finance symbol)", value="SPY")
-    years = st.slider("Years of history", min_value=3, max_value=20, value=10, step=1)
-    end_date = st.date_input("End date", value=date.today())
-    start_date = st.date_input("Start date", value=(end_date - timedelta(days=int(365.25*years))))
+    st.header(t("settings"))
+    ticker = st.text_input(t("ticker_input"), value="SPY")
+    years = st.slider(t("years_of_history"), min_value=3, max_value=20, value=10, step=1)
+    end_date = st.date_input(t("end_date"), value=date.today())
+    start_date = st.date_input(t("start_date"), value=(end_date - timedelta(days=int(365.25*years))))
     st.markdown("---")
-    st.subheader("Savings model")
-    monthly_contrib = st.number_input("Monthly contribution", min_value=0.0, value=30000.0, step=1000.0, format="%.0f")
-    annual_interest = st.number_input("Annual interest (%)", min_value=0.0, max_value=20.0, value=0.5, step=0.1)
-    normalize = st.checkbox("Normalize to 100 at start", value=True)
-    fps = st.slider("Playback speed (frames/sec)", min_value=1, max_value=20, value=6)
-    frame_step = st.selectbox("Frame granularity", options=["Monthly","Quarterly","Yearly"], index=0)
+    st.subheader(t("savings_model"))
+    monthly_contrib = st.number_input(t("monthly_contrib"), min_value=0.0, value=30000.0, step=1000.0, format="%.0f")
+    annual_interest = st.number_input(t("annual_interest"), min_value=0.0, max_value=20.0, value=0.5, step=0.1)
+    normalize = st.checkbox(t("normalize"), value=True)
+    fps = st.slider(t("fps"), min_value=1, max_value=20, value=6)
+    frame_step = st.selectbox(t("frame_granularity"), options=[t("monthly"), t("quarterly"), t("yearly")], index=0)
 
 @st.cache_data
 def load_prices(ticker, start, end):
@@ -49,7 +118,7 @@ def make_savings_curve(start, end, monthly_contrib, annual_interest_pct):
 
 prices = load_prices(ticker, start_date, end_date)
 if prices.empty:
-    st.error("No price data found. Check the ticker or date range.")
+    st.error(t("no_price_data"))
     st.stop()
 
 savings = make_savings_curve(prices.index.min().date(), prices.index.max().date(), monthly_contrib, annual_interest)
@@ -61,9 +130,9 @@ df_norm['price'] = df_norm['price'] / df_norm['price'].iloc[0] * 100.0
 df_norm['savings'] = (df_norm['savings'] / max(df_norm['savings'].iloc[0], 1e-9)) * 100.0
 plot_df = df_norm if normalize else df
 
-if frame_step == "Monthly":
+if frame_step == t("monthly"):
     frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='ME')
-elif frame_step == "Quarterly":
+elif frame_step == t("quarterly"):
     frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='QE')
 else:
     frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='YE')
@@ -74,24 +143,24 @@ if not frame_index:
 
 t0 = frame_index[0]
 cut0 = plot_df.loc[:t0]
-ytitle = "Indexed to 100" if normalize else "Price / Savings"
+ytitle = t("indexed_title") if normalize else t("price_savings_title")
 
 fig = go.Figure(
     data=[
         go.Scatter(x=cut0.index, y=cut0['price'], mode='lines', name=f"{ticker}"),
-        go.Scatter(x=cut0.index, y=cut0['savings'], mode='lines', name="Savings")
+        go.Scatter(x=cut0.index, y=cut0['savings'], mode='lines', name=t("savings_label"))
     ],
     layout=go.Layout(
-        title=f"{ticker} — {years}Y Replay with Savings Overlay",
-        xaxis=dict(title="Date"),
+        title=t("replay_title", ticker=ticker, years=years),
+        xaxis=dict(title=t("date")),
         yaxis=dict(title=ytitle),
         updatemenus=[
             dict(
                 type="buttons",
                 buttons=[
-                    dict(label="▶ Play", method="animate",
+                    dict(label=t("play"), method="animate",
                          args=[None, {"frame": {"duration": int(1000/max(fps,1))}, "fromcurrent": True}]),
-                    dict(label="⏸ Pause", method="animate",
+                    dict(label=t("pause"), method="animate",
                          args=[[None], {"frame": {"duration": 0}}])
                 ],
                 direction="left",
@@ -102,7 +171,7 @@ fig = go.Figure(
         sliders=[
             dict(
                 active=0,
-                currentvalue={"prefix":"Up to: "},
+                currentvalue={"prefix": t("up_to")},
                 pad={"t": 50},
                 steps=[
                     dict(
@@ -121,8 +190,8 @@ fig = go.Figure(
         go.Frame(
             name=dt.strftime("%Y-%m-%d"),
             data=[
-                go.Scatter(x=plot_df.loc[:dt].index, y=plot_df.loc[:dt, 'price']),
-                go.Scatter(x=plot_df.loc[:dt].index, y=plot_df.loc[:dt, 'savings'])
+                go.Scatter(x=plot_df.loc[:dt].index, y=plot_df.loc[:dt, 'price'], name=f"{ticker}"),
+                go.Scatter(x=plot_df.loc[:dt].index, y=plot_df.loc[:dt, 'savings'], name=t("savings_label"))
             ]
         )
         for dt in frame_index
@@ -132,9 +201,9 @@ fig = go.Figure(
 st.plotly_chart(fig, use_container_width=True)
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric("Price change", f"{(df['price'].iloc[-1]/df['price'].iloc[0]-1)*100:.2f}%")
+    st.metric(t("price_change"), f"{(df['price'].iloc[-1]/df['price'].iloc[0]-1)*100:.2f}%")
 with col2:
     total_months = len(pd.date_range(start=df.index.min(), end=df.index.max(), freq='ME'))
-    st.metric("Total contributions", f"{(monthly_contrib * total_months):,.0f}")
+    st.metric(t("total_contrib"), f"{(monthly_contrib * total_months):,.0f}")
 with col3:
-    st.metric("Savings balance", f"{df['savings'].iloc[-1]:,.0f}")
+    st.metric(t("savings_balance"), f"{df['savings'].iloc[-1]:,.0f}")
