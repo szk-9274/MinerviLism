@@ -28,12 +28,14 @@ def load_prices(ticker, start, end):
     df = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
     if df.empty:
         return df
-    df = df[['Close']].rename(columns={'Close':'close'})
+    df = df[['Close']].rename(columns={'Close': 'close'})
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.droplevel(-1)
     df.index = pd.to_datetime(df.index).tz_localize(None)
     return df
 
 def make_savings_curve(start, end, monthly_contrib, annual_interest_pct):
-    month_ends = pd.date_range(start=pd.to_datetime(start), end=pd.to_datetime(end), freq='M')
+    month_ends = pd.date_range(start=pd.to_datetime(start), end=pd.to_datetime(end), freq='ME')
     r = (annual_interest_pct / 100.0) / 12.0
     balances = []
     balance = 0.0
@@ -53,18 +55,18 @@ if prices.empty:
 savings = make_savings_curve(prices.index.min().date(), prices.index.max().date(), monthly_contrib, annual_interest)
 savings = savings.reindex(prices.index).ffill()
 
-df = pd.DataFrame({'price': prices['close'], 'savings': savings})
+df = pd.DataFrame({'price': prices['close'].squeeze(), 'savings': savings})
 df_norm = df.copy()
 df_norm['price'] = df_norm['price'] / df_norm['price'].iloc[0] * 100.0
 df_norm['savings'] = (df_norm['savings'] / max(df_norm['savings'].iloc[0], 1e-9)) * 100.0
 plot_df = df_norm if normalize else df
 
 if frame_step == "Monthly":
-    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='M')
+    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='ME')
 elif frame_step == "Quarterly":
-    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='Q')
+    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='QE')
 else:
-    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='Y')
+    frame_index = pd.date_range(start=plot_df.index.min(), end=plot_df.index.max(), freq='YE')
 
 frame_index = [d for d in frame_index if d in plot_df.index]
 if not frame_index:
@@ -132,6 +134,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("Price change", f"{(df['price'].iloc[-1]/df['price'].iloc[0]-1)*100:.2f}%")
 with col2:
-    st.metric("Total contributions", f"{(monthly_contrib * len(pd.date_range(start=df.index.min(), end=df.index.max(), freq='M'))):,.0f}")
+    total_months = len(pd.date_range(start=df.index.min(), end=df.index.max(), freq='ME'))
+    st.metric("Total contributions", f"{(monthly_contrib * total_months):,.0f}")
 with col3:
     st.metric("Savings balance", f"{df['savings'].iloc[-1]:,.0f}")
