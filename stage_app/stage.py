@@ -61,29 +61,57 @@ def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFra
 
 
 def classify_stages(df: pd.DataFrame, slope_threshold: float = 0.0) -> pd.Series:
-    """Classify market stages based on indicator data."""
+    """Classify market stages based on indicator data.
+
+    The input ``df`` is expected to contain the indicator columns produced by
+    :func:`compute_indicators`.  In some scenarios ``df`` may arrive with a
+    ``MultiIndex`` (e.g. after grouping by ticker) or with certain columns
+    stored as single-column ``DataFrame`` objects instead of ``Series``.  This
+    leads to misaligned operands during the comparisons below and ultimately
+    raises ``ValueError: Operands are not aligned``.
+
+    To make the function robust we normalise the frame by dropping any leading
+    index levels, flattening multi-level columns, and squeezing each relevant
+    column into a ``Series`` before performing the boolean operations.
+    """
+
+    df = df.copy()
+    if isinstance(df.index, pd.MultiIndex):
+        # keep the last level (typically the date) for alignment
+        df.index = df.index.get_level_values(-1)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(-1)
+
+    close = df["Close"].squeeze()
+    sma50 = df["SMA50"].squeeze()
+    sma150 = df["SMA150"].squeeze()
+    sma200 = df["SMA200"].squeeze()
+    slope200 = df["Slope200"].squeeze()
+    high52w = df["High52w"].squeeze()
+    low52w = df["Low52w"].squeeze()
+
     stage = pd.Series(np.nan, index=df.index, dtype="float")
 
     cond2 = (
-        (df["Close"] > df["SMA50"]) &
-        (df["Close"] > df["SMA150"]) &
-        (df["Close"] > df["SMA200"]) &
-        (df["SMA150"] > df["SMA200"]) &
-        (df["Slope200"] > slope_threshold) &
-        (df["Close"] >= df["Low52w"] * 1.30) &
-        (df["Close"] >= df["High52w"] * 0.75)
+        (close > sma50) &
+        (close > sma150) &
+        (close > sma200) &
+        (sma150 > sma200) &
+        (slope200 > slope_threshold) &
+        (close >= low52w * 1.30) &
+        (close >= high52w * 0.75)
     )
 
-    cond4 = (df["Close"] < df["SMA200"]) & (df["Slope200"] < slope_threshold)
+    cond4 = (close < sma200) & (slope200 < slope_threshold)
 
     cond3 = (
-        (df["Close"] < df["SMA50"]) &
-        (df["Close"] < df["SMA150"]) &
-        (df["Close"] >= df["SMA200"]) &
-        (df["Slope200"] <= slope_threshold)
+        (close < sma50) &
+        (close < sma150) &
+        (close >= sma200) &
+        (slope200 <= slope_threshold)
     )
 
-    cond1 = (df["Close"] <= df["SMA200"]) & (df["Slope200"] >= slope_threshold)
+    cond1 = (close <= sma200) & (slope200 >= slope_threshold)
 
     stage[cond2] = 2
     stage[cond4 & stage.isna()] = 4
