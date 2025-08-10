@@ -2,14 +2,13 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from time import perf_counter
-from typing import List
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from stage_app.stage import (
+from .stage import (
     STAGE_COLORS,
     classify_stages,
     compute_indicators,

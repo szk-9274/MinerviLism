@@ -1,20 +1,25 @@
 import warnings
 from pathlib import Path
-from typing import Optional
 
-import pandas as pd
 import typer
 
-from stage_app.stage import classify_stages, compute_indicators, fetch_price_data
+from .stage import classify_stages, compute_indicators, fetch_price_data
 
-app = typer.Typer()
+app = typer.Typer(no_args_is_help=True)
+
+
+@app.callback()
+def main() -> None:
+    """Stage classification utilities."""
 
 
 @app.command()
 def classify(
     ticker: str = typer.Option(..., help="Ticker symbol"),
     csv_out: Path = typer.Option(..., help="Output CSV file"),
-    suppress_warnings: bool = typer.Option(False, "--suppress-warnings", help="Silence warnings"),
+    suppress_warnings: bool = typer.Option(
+        False, "--suppress-warnings", help="Silence warnings"
+    ),
 ) -> None:
     """Export 1Y stage classification to CSV."""
     if suppress_warnings:
