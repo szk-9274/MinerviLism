@@ -8,12 +8,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from stage_app.stage import (
-    STAGE_COLORS,
-    classify_stages,
-    compute_indicators,
-    fetch_price_data,
-)
+try:  # Attempt absolute import when package is installed
+    from stage_app.stage import (
+        STAGE_COLORS,
+        classify_stages,
+        compute_indicators,
+        fetch_price_data,
+    )
+except ModuleNotFoundError:  # Fallback for running as a script
+    from stage import (
+        STAGE_COLORS,
+        classify_stages,
+        compute_indicators,
+        fetch_price_data,
+    )
 
 st.set_page_config(layout="wide")
 
