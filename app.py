@@ -40,7 +40,7 @@ translations = {
         "savings_label": "Savings"
     },
     "ja": {
-        "app_title": "\ud83d\udcc8 10年間株価再生と貯蓄の重ね合わせ",
+        "app_title": "📈 10年間株価再生と貯蓄の重ね合わせ",
         "settings": "設定",
         "ticker_input": "ティッカー（Yahoo Financeのシンボル）",
         "years_of_history": "表示年数",
