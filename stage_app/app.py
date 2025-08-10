@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from .stage import (
+from stage_app.stage import (
     STAGE_COLORS,
     classify_stages,
     compute_indicators,

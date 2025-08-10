@@ -3,7 +3,7 @@ from pathlib import Path
 
 import typer
 
-from .stage import classify_stages, compute_indicators, fetch_price_data
+from stage_app.stage import classify_stages, compute_indicators, fetch_price_data
 
 app = typer.Typer(no_args_is_help=True)
 
