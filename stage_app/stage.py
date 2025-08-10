@@ -2,22 +2,23 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
 import pandas as pd
+import streamlit as st
 import yfinance as yf
 
 
 STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
 
-def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
-    """Fetch adjusted close prices for a ticker.
+@st.cache_data(ttl=3600)
+def fetch_price_data(ticker: str = "NVDA", lookback_days: int = 380) -> pd.DataFrame:
+    """Fetch OHLC data for ``ticker`` and keep the latest 252 trading days.
 
-    Downloads data for the last ``lookback_days`` calendar days and keeps the
-    most recent 252 trading days. Raises ``ValueError`` if fewer than 200 rows
-    remain after trimming.
+    Columns are flattened if a MultiIndex is returned by ``yfinance`` and only
+    ``Open``, ``High``, ``Low``, ``Close`` and ``Volume`` are kept. Raises
+    ``ValueError`` if fewer than 200 rows remain after trimming.
     """
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days)
@@ -30,6 +31,7 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
     )
     if data.empty:
         raise ValueError("No data returned.")
+
     data = data.tail(252)
     if len(data) < 200:
         raise ValueError(
@@ -37,17 +39,14 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
         )
 
     if isinstance(data.columns, pd.MultiIndex):
-        close = data.xs("Close", axis=1, level=0)
-        if isinstance(close, pd.Series):
-            close = close.to_frame("Close")
-        else:
-            close.columns = ["Close"]
-        data = close
-    else:
-        if "Close" not in data.columns:
-            raise ValueError("Downloaded data missing 'Close' column.")
-        data = data[["Close"]]
-    return data
+        # Flatten MultiIndex columns (e.g. ('Close', 'NVDA') -> 'Close')
+        data.columns = data.columns.get_level_values(0)
+
+    required = ["Open", "High", "Low", "Close", "Volume"]
+    missing = [c for c in required if c not in data.columns]
+    if missing:
+        raise ValueError(f"Downloaded data missing columns: {missing}")
+    return data[required]
 
 
 def _sma_slope(series: pd.Series, window: int) -> pd.Series:
