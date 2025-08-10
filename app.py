@@ -18,6 +18,9 @@ translations = {
         "mobile": "Mobile",
         "advanced_options": "Advanced options",
         "ticker_input": "Ticker (Yahoo Finance symbol)",
+        "popular_tickers": "Popular tickers",
+        "custom_ticker": "Custom ticker",
+        "ticker_required": "Please enter a ticker symbol.",
         "years_of_history": "Years of history",
         "end_date": "End date",
         "start_date": "Start date",
@@ -51,6 +54,9 @@ translations = {
         "mobile": "スマホ",
         "advanced_options": "詳細設定",
         "ticker_input": "ティッカー（Yahoo Financeのシンボル）",
+        "popular_tickers": "主要ティッカー",
+        "custom_ticker": "その他のティッカー",
+        "ticker_required": "ティッカーを入力してください。",
         "years_of_history": "表示年数",
         "end_date": "終了日",
         "start_date": "開始日",
@@ -89,9 +95,16 @@ is_mobile = display_mode == t("mobile")
 
 st.title(t("app_title"))
 
+POPULAR_TICKERS = ["SPY", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "BTC-USD"]
+
 with st.sidebar:
     st.header(t("settings"))
-    ticker = st.text_input(t("ticker_input"), value="SPY")
+    default_ticker = st.selectbox(t("popular_tickers"), options=POPULAR_TICKERS, index=0)
+    custom_ticker = st.text_input(t("custom_ticker"), value="")
+    ticker = (custom_ticker.strip() or default_ticker).upper()
+    if not ticker:
+        st.warning(t("ticker_required"))
+        st.stop()
     years = st.slider(t("years_of_history"), min_value=3, max_value=20, value=10, step=1)
     end_date = st.date_input(t("end_date"), value=date.today())
     start_date = st.date_input(t("start_date"), value=(end_date - timedelta(days=int(365.25*years))))
@@ -129,7 +142,7 @@ def make_savings_curve(start, end, monthly_contrib, annual_interest_pct):
         balances.append(balance)
     savings_monthly = pd.Series(balances, index=month_ends, name='savings')
     bdays = pd.date_range(start=pd.to_datetime(start), end=pd.to_datetime(end), freq='B')
-    savings_daily = savings_monthly.reindex(bdays).ffill()
+    savings_daily = savings_monthly.reindex(bdays).ffill().fillna(0)
     return savings_daily
 
 prices = load_prices(ticker, start_date, end_date)
@@ -138,12 +151,12 @@ if prices.empty:
     st.stop()
 
 savings = make_savings_curve(prices.index.min().date(), prices.index.max().date(), monthly_contrib, annual_interest)
-savings = savings.reindex(prices.index).ffill()
+savings = savings.reindex(prices.index).ffill().fillna(0)
 
 df = pd.DataFrame({'price': prices['close'].squeeze(), 'savings': savings})
 df_norm = df.copy()
 df_norm['price'] = df_norm['price'] / df_norm['price'].iloc[0] * 100.0
-df_norm['savings'] = (df_norm['savings'] / max(df_norm['savings'].iloc[0], 1e-9)) * 100.0
+df_norm['savings'] = df_norm['savings'] / max(df_norm['savings'].max(), 1e-9) * 100.0
 plot_df = df_norm if normalize else df
 
 if frame_step == t("monthly"):
