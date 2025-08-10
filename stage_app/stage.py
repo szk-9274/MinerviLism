@@ -71,63 +71,49 @@ def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFra
     df["Slope200"] = _sma_slope(df["SMA200"], slope_window)
     return df
 
-
 def classify_stages(df: pd.DataFrame, slope_threshold: float = 0.0) -> pd.Series:
-    """Classify market stages based on indicator data.
-
-    The input ``df`` is expected to contain the indicator columns produced by
-    :func:`compute_indicators`.  In some scenarios ``df`` may arrive with a
-    ``MultiIndex`` (e.g. after grouping by ticker) or with certain columns
-    stored as single-column ``DataFrame`` objects instead of ``Series``.  This
-    leads to misaligned operands during the comparisons below and ultimately
-    raises ``ValueError: Operands are not aligned``.
-
-    To make the function robust we normalise the frame by dropping any leading
-    index levels, flattening multi-level columns, and squeezing each relevant
-    column into a ``Series`` before performing the boolean operations.
+    """Minervini 1/2/3/4 判定（Stage3 を優先）。
+    優先度: 2(厳格) ＞ 3 ＞ 4 ＞ 1 ＞ 2(基本)
     """
-
     df = df.copy()
     if isinstance(df.index, pd.MultiIndex):
-        # keep the last level (typically the date) for alignment
         df.index = df.index.get_level_values(-1)
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(-1)
 
-    close = df["Close"].squeeze()
-    sma50 = df["SMA50"].squeeze()
-    sma150 = df["SMA150"].squeeze()
-    sma200 = df["SMA200"].squeeze()
-    slope200 = df["Slope200"].squeeze()
+    close   = df["Close"].squeeze()
+    sma50   = df["SMA50"].squeeze()
+    sma150  = df["SMA150"].squeeze()
+    sma200  = df["SMA200"].squeeze()
+    slope   = df["Slope200"].squeeze()
     high52w = df["High52w"].squeeze()
-    low52w = df["Low52w"].squeeze()
+    low52w  = df["Low52w"].squeeze()
 
     stage = pd.Series(np.nan, index=df.index, dtype="float")
 
-    cond2 = (
-        (close > sma50) &
-        (close > sma150) &
-        (close > sma200) &
-        (sma150 > sma200) &
-        (slope200 > slope_threshold) &
-        (close >= low52w * 1.30) &
-        (close >= high52w * 0.75)
+    # Stage 2（厳格：52週条件あり）
+    cond2_strict = (
+        (close > sma50) & (close > sma150) & (close > sma200) &
+        (sma150 > sma200) & (slope > slope_threshold) &
+        (close >= low52w * 1.30) & (close >= high52w * 0.75)
     )
+    stage[cond2_strict] = 2
 
-    cond4 = (close < sma200) & (slope200 < slope_threshold)
+    # Stage 3（50/150の下、200の上、かつ傾き<=0） ← 優先順位を上げる
+    cond3 = (close < sma50) & (close < sma150) & (close >= sma200) & (slope <= slope_threshold)
+    stage[stage.isna() & cond3] = 3
 
-    cond3 = (
-        (close < sma50) &
-        (close < sma150) &
-        (close >= sma200) &
-        (slope200 <= slope_threshold)
-    )
+    # Stage 4（200下＆下向き）
+    cond4 = (close < sma200) & (slope < slope_threshold)
+    stage[stage.isna() & cond4] = 4
 
-    cond1 = (close <= sma200) & (slope200 >= slope_threshold)
+    # Stage 1（200下（以下）＆傾き>=0）
+    cond1 = (close <= sma200) & (slope >= slope_threshold)
+    stage[stage.isna() & cond1] = 1
 
-    stage[cond2] = 2
-    stage[cond4 & stage.isna()] = 4
-    stage[cond3 & stage.isna()] = 3
-    stage[cond1 & stage.isna()] = 1
+    # Stage 2（基本：200MA上＆上向き。ただし 50/150 を同時に下回っている日は除外＝Stage3を優先）
+    cond2_basic = (close > sma200) & (slope > slope_threshold) & ~((close < sma50) & (close < sma150))
+    stage[stage.isna() & cond2_basic] = 2
 
     return stage
+

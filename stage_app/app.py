@@ -32,6 +32,9 @@ def cached_fetch(ticker: str) -> pd.DataFrame:
 
 
 def build_chart(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        raise ValueError("No rows with computed Stage yet. Need enough data to compute indicators.")
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -44,15 +47,19 @@ def build_chart(df: pd.DataFrame) -> go.Figure:
         )
     )
 
+    # 区間塗り分け（データ1点でも落ちない）
     segments = []
-    start = df.index[0]
-    current = df["Stage"].iloc[0]
-    for idx, stage in df["Stage"].iloc[1:].items():
-        if stage != current:
-            segments.append((start, idx, current))
-            start = idx
-            current = stage
-    segments.append((start, df.index[-1], current))
+    idxs = df.index
+    stages = df["Stage"]
+
+    start = idxs[0]
+    current = stages.iloc[0]
+    for i in range(1, len(df)):
+        if stages.iloc[i] != current:
+            segments.append((start, idxs[i], current))
+            start = idxs[i]
+            current = stages.iloc[i]
+    segments.append((start, idxs[-1], current))
 
     for s, e, stage in segments:
         color = STAGE_COLORS.get(stage, "white")
@@ -60,6 +67,7 @@ def build_chart(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(margin=dict(l=20, r=20, t=40, b=40))
     return fig
+
 
 
 def main() -> None:
@@ -105,12 +113,25 @@ def main() -> None:
 
         # 5. Rendering chart
         with st.spinner("Rendering chart..."):
-            fig = build_chart(df.dropna())
-            st.plotly_chart(fig, use_container_width=True)
-            st.dataframe(
-                df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]].dropna().tail(10)
+            # グラフ用は Close / Stage だけで欠損を落とす
+            df_plot = df[["Close", "Stage"]].dropna(subset=["Close", "Stage"])
+
+            if df_plot.empty:
+                st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")
+            else:
+                fig = build_chart(df_plot)
+                st.plotly_chart(fig, use_container_width=True)
+
+            # テーブルは移動平均とStageが出た行だけ
+            tbl = (
+                df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]]
+                .dropna(subset=["SMA50", "SMA150", "SMA200", "Stage"])
+                .tail(10)
             )
+            st.dataframe(tbl)
+
         pbar.progress(100)
+
 
         total = perf_counter() - start_time
         st.write(f"Completed in {total:.2f}s")
