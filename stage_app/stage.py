@@ -115,12 +115,17 @@ def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFra
     df["Slope200"] = _sma_slope(df["SMA200"], slope_window)
     return df
 
-def classify_stages(df: pd.DataFrame, slope_threshold: float = -1e-9) -> pd.Series:
+def classify_stages(
+    df: pd.DataFrame,
+    slope_threshold: float = -1e-9,
+    slope_smooth_window: int = 5,
+) -> pd.Series:
     """Minervini 1/2/3/4 判定（Stage3 を優先）。
     優先度: 2(厳格) ＞ 3 ＞ 4 ＞ 1 ＞ 2(基本)
 
     ``slope_threshold`` は微小なノイズで上向き判定になることを防ぐため、
     ごく僅かに負の値をデフォルトとする。
+    ``slope_smooth_window`` は 200MA 傾きの短期平均に利用する窓長。
     """
     df = df.copy()
     if isinstance(df.index, pd.MultiIndex):
@@ -133,7 +138,7 @@ def classify_stages(df: pd.DataFrame, slope_threshold: float = -1e-9) -> pd.Seri
     sma150  = df["SMA150"].squeeze()
     sma200  = df["SMA200"].squeeze()
     # 200日線の傾きは短期平均で平滑化してから符号判定する
-    slope   = df["Slope200"].rolling(5).mean().squeeze()
+    slope   = df["Slope200"].rolling(slope_smooth_window).mean().squeeze()
     high52w = df["High52w"].squeeze()
     low52w  = df["Low52w"].squeeze()
 
