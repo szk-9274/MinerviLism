@@ -17,3 +17,11 @@ streamlit run stage_app/app.py
 ```bash
 python -m stage_app.cli classify --ticker SPY --csv-out stages_1y.csv --suppress-warnings
 ```
+## Run tests
+```bash
+python -m venv venv
+venv\Scripts\activate            # Windows (or: source venv/bin/activate)
+pip install -r requirements.txt  # app deps
+pip install -r requirements-dev.txt
+pytest -q
+```
