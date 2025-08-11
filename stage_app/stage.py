@@ -11,15 +11,23 @@ import yfinance as yf
 STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
 
-def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
+def fetch_price_data(
+    ticker: str,
+    lookback_days: int = 380,
+    calc_lookback_buffer: int = 300,
+) -> pd.DataFrame:
     """Return OHLC data for the requested lookback window.
 
-    ``lookback_days`` specifies how many calendar days to retrieve, which allows
-    the caller to control the visible history (e.g. 1–5 years).  The function
-    is robust to common Yahoo Finance quirks.
+    ``lookback_days`` controls how much recent history the caller is
+    interested in displaying.  Long-term indicators such as the 200-day
+    moving average require additional prior data to compute.  To ensure
+    these indicators are available from the first visible day, this function
+    automatically fetches ``calc_lookback_buffer`` extra calendar days of
+    history.  The caller can then trim the returned DataFrame to the desired
+    window after computing indicators.
     """
     end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days)
+    start = end - timedelta(days=lookback_days + calc_lookback_buffer)
 
     # Ticker.history caches aggressively and is awkward to monkeypatch during
     # testing.  ``yf.download`` is more predictable, so call it directly.
@@ -41,7 +49,7 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
     if data is None or data.empty:
         # As a last resort (e.g., offline environments), synthesize a simple
         # down-trending dataset so indicator calculations still work.
-        dates = pd.bdate_range(end=end, periods=lookback_days)
+        dates = pd.bdate_range(end=end, periods=lookback_days + calc_lookback_buffer)
         close = np.linspace(200.0, 100.0, len(dates))
         data = pd.DataFrame(
             {
@@ -119,6 +127,7 @@ def classify_stages(
     df: pd.DataFrame,
     slope_threshold: float = -1e-9,
     slope_smooth_window: int = 5,
+    below200_margin: float = 0.02,
 ) -> pd.Series:
     """Minervini 1/2/3/4 判定（Stage3 を優先）。
     優先度: 2(厳格) ＞ 3 ＞ 4 ＞ 1 ＞ 2(基本)
@@ -126,6 +135,8 @@ def classify_stages(
     ``slope_threshold`` は微小なノイズで上向き判定になることを防ぐため、
     ごく僅かに負の値をデフォルトとする。
     ``slope_smooth_window`` は 200MA 傾きの短期平均に利用する窓長。
+    ``below200_margin`` は終値が 200MA をこれだけ下回ると、
+    200MA の傾きが僅かに上向きでも Stage4 と見なす閾値。
     """
     df = df.copy()
     if isinstance(df.index, pd.MultiIndex):
@@ -166,12 +177,16 @@ def classify_stages(
     )
     stage[stage.isna() & cond3] = 3
 
-    # Stage 4（200下＆下向き）
-    cond4 = (close < sma200) & (slope < slope_threshold)
+    # Stage 4（200下＆下向き、もしくは大きく下方乖離）
+    if below200_margin > 0:
+        margin_breach = close < sma200 * (1 - below200_margin)
+    else:
+        margin_breach = pd.Series(False, index=close.index)
+    cond4 = (close < sma200) & ((slope < slope_threshold) | margin_breach)
     stage[stage.isna() & cond4] = 4
 
-    # Stage 1（200下（以下）＆傾き>=0）
-    cond1 = (close <= sma200) & (slope >= slope_threshold)
+    # Stage 1（200下（以下）＆傾き>=0。ただし大幅乖離は除外）
+    cond1 = (close <= sma200) & (slope >= slope_threshold) & ~margin_breach
     stage[stage.isna() & cond1] = 1
 
     # Stage 2（基本：200MA上＆上向き。ただし 50/150 を同時に下回っている日は除外＝Stage3を優先）

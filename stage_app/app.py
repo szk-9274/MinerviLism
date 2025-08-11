@@ -137,7 +137,7 @@ def main() -> None:
     try:
         # 1) データ取得（表示よりも長めに取得して指標計算に利用）
         with st.spinner("Downloading data..."):
-            lookback_days = int(years * 365 + 300)
+            lookback_days = int(years * 365)
             data = cached_fetch(ticker, lookback_days=lookback_days)
         pbar.progress(int(1 * 100 / steps))
 
