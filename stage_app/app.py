@@ -103,6 +103,8 @@ def build_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
         xaxis_rangeslider_visible=False,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
+    # X軸は受け取ったデータ範囲をそのまま表示する（NaNによる短縮を防止）
+    fig.update_xaxes(range=[df.index.min(), df.index.max()])
     return fig
 
 
