@@ -155,14 +155,15 @@ def classify_stages(
     )
     stage[cond2_strict] = 2
 
-    # Stage 3（200MAの上で200MAが下向き）
+    # Stage 3（200MAの上で Stage2 を満たさないケース）
     #
-    # 以前は 50MA と 150MA の両方を下回った場合だけ Stage3 と判定していたが、
-    # それでは「200MA の上にいるが、50MA か 150MA のどちらか一方は上回って
-    # いる」という局面が未分類のまま ``NaN`` になってしまうことがあった。
-    # 200MA が下降している限り、そうしたケースも Stage3 とみなして良いため
-    # 判定を広げる。
-    cond3 = (close >= sma200) & (slope <= slope_threshold)
+    # 以前は 200MA が下向きの場合にだけ Stage3 としていたが、
+    # 「200MA は上向きだが 50MA と 150MA を同時に下回っている」
+    # 局面が未分類の ``NaN`` になってしまうことがあった。
+    # そうした日も Stage3 として扱い、判定漏れを防ぐ。
+    cond3 = (close >= sma200) & (
+        (slope <= slope_threshold) | ((close < sma50) & (close < sma150))
+    )
     stage[stage.isna() & cond3] = 3
 
     # Stage 4（200下＆下向き）
