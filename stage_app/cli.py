@@ -22,15 +22,21 @@ def classify(
     ),
 ) -> None:
     """Export 1Y stage classification to CSV."""
+    def _run() -> None:
+        data = fetch_price_data(ticker)
+        df = compute_indicators(data)
+        df["Stage"] = classify_stages(df)
+        df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]].dropna().to_csv(
+            csv_out, index_label="Date"
+        )
+        typer.echo(f"Saved {csv_out}")
+
     if suppress_warnings:
-        warnings.filterwarnings("ignore")
-    data = fetch_price_data(ticker)
-    df = compute_indicators(data)
-    df["Stage"] = classify_stages(df)
-    df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]].dropna().to_csv(
-        csv_out, index_label="Date"
-    )
-    typer.echo(f"Saved {csv_out}")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _run()
+    else:
+        _run()
 
 
 if __name__ == "__main__":
