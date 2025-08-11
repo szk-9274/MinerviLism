@@ -132,9 +132,9 @@ def main() -> None:
     t0 = perf_counter()
 
     try:
-        # 1) データ取得（年数→暦日換算。余裕を持って365*years日）
+        # 1) データ取得（表示よりも長めに取得して指標計算に利用）
         with st.spinner("Downloading data..."):
-            lookback_days = int(years * 365)
+            lookback_days = int(years * 365 + 300)
             data = cached_fetch(ticker, lookback_days=lookback_days)
         pbar.progress(int(1 * 100 / steps))
 
@@ -157,10 +157,13 @@ def main() -> None:
             if df_plot.empty:
                 st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")
             else:
+                display_end = df_plot.index.max()
+                display_start = display_end - pd.Timedelta(days=365 * years)
+                df_plot = df_plot[(df_plot.index >= display_start) & (df_plot.index <= display_end)]
                 fig = build_chart(df_plot, ticker)
                 st.plotly_chart(fig, use_container_width=True)
                 tbl = (
-                    df[["Close", "SMA25", "SMA50", "SMA200", "Stage"]]
+                    df_plot[["Close", "SMA25", "SMA50", "SMA200", "Stage"]]
                     .dropna(subset=["SMA25", "SMA50", "SMA200", "Stage"])
                     .tail(10)
                 )
