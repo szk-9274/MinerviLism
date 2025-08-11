@@ -1,0 +1,25 @@
+[
+  {
+    "name": "NVDA_1Y_continuity",
+    "ticker": "NVDA",
+    "years": 1,
+    "expect": {
+      "min_trading_days": 240,
+      "require_sma200_coverage_days": 200,
+      "allow_stage_nan_ratio": 0.05
+    }
+  },
+  {
+    "name": "AAPL_20250314_20250409_stage4",
+    "ticker": "AAPL",
+    "window": {
+      "start": "2025-03-14",
+      "end": "2025-04-09"
+    },
+    "expect": {
+      "stage": 4,
+      "method": "majority",
+      "min_ratio": 0.6
+    }
+  }
+]
