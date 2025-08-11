@@ -26,18 +26,27 @@ except ModuleNotFoundError:
 
 st.set_page_config(layout="wide")
 
-TICKER_DEFAULT = "NVDA"
+CHOICES = {
+    "NVIDIA (NVDA)": "NVDA",
+    "Apple (AAPL)": "AAPL",
+    "Microsoft (MSFT)": "MSFT",
+    "Amazon (AMZN)": "AMZN",
+    "Alphabet (GOOGL)": "GOOGL",
+    "Meta (META)": "META",
+    "Tesla (TSLA)": "TSLA",
+    "Bitcoin (BTC-USD)": "BTC-USD",
+}
+
 
 @st.cache_data(ttl=1800)
 def cached_fetch(ticker: str, lookback_days: int) -> pd.DataFrame:
-    # stage.py 側の fetch は OHLC を返す堅牢版になっている想定
     return fetch_price_data(ticker, lookback_days=lookback_days)
 
-def build_chart(df: pd.DataFrame, ticker_label: str) -> go.Figure:
+
+def build_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
     if df.empty:
         raise ValueError("No rows with computed Stage yet. Need enough data to compute indicators.")
 
-    # Candlestick（hovertemplateは未対応なので hovertext を使う）
     fig = go.Figure(
         data=[
             go.Candlestick(
@@ -46,7 +55,7 @@ def build_chart(df: pd.DataFrame, ticker_label: str) -> go.Figure:
                 high=df["High"],
                 low=df["Low"],
                 close=df["Close"],
-                name=ticker_label,
+                name=ticker,
                 customdata=df["Stage"],
                 hovertext=[
                     f"Open {o:.2f}<br>High {h:.2f}<br>Low {l:.2f}<br>Close {c:.2f}<br>Stage {int(s) if pd.notna(s) else 'NA'}"
@@ -59,7 +68,21 @@ def build_chart(df: pd.DataFrame, ticker_label: str) -> go.Figure:
         ]
     )
 
-    # 月ごと代表ステージ＝最頻値（mode）で色帯
+    for name, color in [
+        ("SMA25", "blue"),
+        ("SMA50", "orange"),
+        ("SMA200", "purple"),
+    ]:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df[name],
+                name=name,
+                mode="lines",
+                line=dict(color=color),
+            )
+        )
+
     monthly = df["Stage"].resample("MS").apply(
         lambda s: s.mode().iloc[0] if not s.dropna().empty else np.nan
     )
@@ -86,8 +109,9 @@ def build_chart(df: pd.DataFrame, ticker_label: str) -> go.Figure:
 def main() -> None:
     # ===== サイドバー =====
     st.sidebar.header("Settings")
-    ticker = st.sidebar.text_input("Ticker", TICKER_DEFAULT).strip().upper()
-    years = st.sidebar.number_input("期間（年数）", min_value=1, max_value=10, value=1, step=1)
+    label = st.sidebar.selectbox("Ticker", list(CHOICES.keys()), index=0)
+    ticker = CHOICES[label]
+    years = st.sidebar.number_input("期間（年数）", 1, 10, 1, 1)
     run_btn = st.sidebar.button("Run")
 
     st.sidebar.markdown("### Stage Colors")
@@ -99,9 +123,6 @@ def main() -> None:
 
     if not run_btn:
         st.info("左の設定を選んで『Run』を押してください。")
-        return
-    if not ticker:
-        st.warning("ティッカーを入力してください。")
         return
 
     pbar = st.progress(0)
@@ -134,13 +155,12 @@ def main() -> None:
             else:
                 fig = build_chart(df_plot, ticker)
                 st.plotly_chart(fig, use_container_width=True)
-
-            tbl = (
-                df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]]
-                .dropna(subset=["SMA50", "SMA150", "SMA200", "Stage"])
-                .tail(10)
-            )
-            st.dataframe(tbl)
+                tbl = (
+                    df[["Close", "SMA25", "SMA50", "SMA200", "Stage"]]
+                    .dropna(subset=["SMA25", "SMA50", "SMA200", "Stage"])
+                    .tail(10)
+                )
+                st.dataframe(tbl)
 
         pbar.progress(100)
         st.write(f"Completed in {perf_counter() - t0:.2f}s")

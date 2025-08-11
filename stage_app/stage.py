@@ -5,15 +5,11 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 import yfinance as yf
 
 
 STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
-
-@st.cache_data(ttl=3600)
-# stage_app/stage.py の fetch_price_data を差し替え
 
 def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
     """Return OHLC for last ~1y (252 trading days). Robust to Yahoo quirks."""
@@ -39,16 +35,21 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
 
     # 列をフラット化
     if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.get_level_values(-1)
+        data.columns = data.columns.get_level_values(0)
 
     # 列名の大小文字ぶれ対策
     cols = {c.lower(): c for c in data.columns}
-    have = {k: cols.get(k) for k in ["open", "high", "low", "close"]}
+    have = {k: cols.get(k) for k in ["open", "high", "low", "close", "volume"]}
 
-    # 3) OHLC が揃っていればそれを使用
-    if all(have.values()):
-        data = data[[have["open"], have["high"], have["low"], have["close"]]]
-        data.columns = ["Open", "High", "Low", "Close"]
+    # 3) OHLC が揃っていればそれを使用（Volume があれば併せて返す）
+    if all(have[k] for k in ["open", "high", "low", "close"]):
+        keep = [have["open"], have["high"], have["low"], have["close"]]
+        headers = ["Open", "High", "Low", "Close"]
+        if have["volume"]:
+            keep.append(have["volume"])
+            headers.append("Volume")
+        data = data[keep]
+        data.columns = headers
     else:
         # 4) 最低限のフォールバック：Close から擬似 OHLC を作る
         #    （ローソク足は描けるが上下ヒゲは出ない）
@@ -82,6 +83,7 @@ def _sma_slope(series: pd.Series, window: int) -> pd.Series:
 def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFrame:
     """Compute moving averages and 52w high/low."""
     df = data.copy()
+    df["SMA25"] = df["Close"].rolling(25).mean()
     df["SMA50"] = df["Close"].rolling(50).mean()
     df["SMA150"] = df["Close"].rolling(150).mean()
     df["SMA200"] = df["Close"].rolling(200).mean()
@@ -135,4 +137,3 @@ def classify_stages(df: pd.DataFrame, slope_threshold: float = 0.0) -> pd.Series
     stage[stage.isna() & cond2_basic] = 2
 
     return stage
-
