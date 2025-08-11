@@ -46,8 +46,10 @@ def classify_stage(df: pd.DataFrame, config: StageConfig | None = None) -> pd.Da
     stage[(out["Close"] < out["SMA200"]) & (out["SMA200_slope"] < 0) & ~tt] = 4
 
     cond3 = (
-        (out["Close"] < out["SMA50"]) & (out["Close"] < out["SMA150"])
-        & (out["Close"] >= out["SMA200"]) & (out["SMA200_slope"] <= 0)
+        (out["Close"] >= out["SMA200"]) & (
+            (out["SMA200_slope"] <= cfg.slope_threshold)
+            | ((out["Close"] < out["SMA50"]) & (out["Close"] < out["SMA150"]))
+        )
     )
     stage[cond3 & stage.isna()] = 3
 
