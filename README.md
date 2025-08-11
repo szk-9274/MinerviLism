@@ -43,7 +43,9 @@ scripts:
 ```python
 from stage_app.stage import fetch_price_data, compute_indicators, classify_stages
 
-df = fetch_price_data("SPY", lookback_days=380)
+# ``fetch_price_data`` automatically grabs additional history (~300 days)
+# so indicator calculations have sufficient warm-up data.
+df = fetch_price_data("SPY", lookback_days=365)
 df = compute_indicators(df)
 # ``slope_smooth_window`` controls the rolling mean used for the 200MA slope.
 df["Stage"] = classify_stages(df, slope_smooth_window=5)

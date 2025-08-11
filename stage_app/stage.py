@@ -14,7 +14,7 @@ STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 def fetch_price_data(
     ticker: str,
     lookback_days: int = 365,
-    calc_lookback_buffer: int = 220,
+    calc_lookback_buffer: int = 300,
 ) -> pd.DataFrame:
     """Return OHLC data for the requested lookback window.
 
@@ -25,8 +25,12 @@ def fetch_price_data(
     buffer`` specifies how many extra calendar days of history to fetch for
     this warm‑up period.  Callers should perform indicator calculations on
     the full returned frame and only slice to the desired display window at
-    the end.
+    the end.  If a caller provides a smaller buffer, at least 200 days of
+    warm‑up data will still be fetched.
     """
+    if calc_lookback_buffer < 200:
+        calc_lookback_buffer = 200
+
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days + calc_lookback_buffer)
 
