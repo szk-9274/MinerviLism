@@ -181,7 +181,7 @@ def main() -> None:
         st.session_state._changed_at = time()
         st.session_state.loading = True
         st.session_state.error = None
-        st.experimental_rerun()
+        st.rerun()
 
     # ===== サイドバー =====
     st.sidebar.header("Settings")
@@ -251,7 +251,7 @@ def main() -> None:
                     st.session_state.error = str(exc)
                 finally:
                     st.session_state.loading = False
-                    st.experimental_rerun()
+                    st.rerun()
         return
 
     # ==== Display phase ==================================================
