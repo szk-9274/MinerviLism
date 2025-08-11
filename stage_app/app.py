@@ -163,7 +163,9 @@ def main() -> None:
                 st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")
             else:
                 display_end = df_plot.index.max()
-                display_start = display_end - pd.Timedelta(days=365 * years)
+                # Trim only after indicators and stages are computed so the
+                # warm-up period fetched in ``fetch_price_data`` is preserved.
+                display_start = display_end - pd.Timedelta(days=lookback_days)
                 df_plot = df_plot[(df_plot.index >= display_start) & (df_plot.index <= display_end)]
                 fig = build_chart(df_plot, ticker)
                 st.plotly_chart(fig, use_container_width=True)
