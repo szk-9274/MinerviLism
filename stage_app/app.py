@@ -148,7 +148,9 @@ def main() -> None:
 
         # 4) 描画
         with st.spinner("Rendering chart..."):
-            need = ["Open", "High", "Low", "Close", "Stage"]
+            # Stage 列の NaN でフィルタすると初期データが消えてしまうため、
+            # OHLC が揃っているかのみ確認する
+            need = ["Open", "High", "Low", "Close"]
             df_plot = df.dropna(subset=need).copy()
             if df_plot.empty:
                 st.info("まだステージが計算できた行がありません（SMAや200日傾きの計算に十分な日数が必要です）。")

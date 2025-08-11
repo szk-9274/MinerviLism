@@ -12,7 +12,12 @@ STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
 
 def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
-    """Return OHLC for last ~1y (252 trading days). Robust to Yahoo quirks."""
+    """Return OHLC data for the requested lookback window.
+
+    ``lookback_days`` specifies how many calendar days to retrieve, which allows
+    the caller to control the visible history (e.g. 1–5 years).  The function
+    is robust to common Yahoo Finance quirks.
+    """
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days)
 
@@ -61,8 +66,6 @@ def fetch_price_data(ticker: str, lookback_days: int = 380) -> pd.DataFrame:
             {"Open": c, "High": c, "Low": c, "Close": c}, index=data.index
         )
 
-    # 直近252本に絞る
-    data = data.tail(252)
     if len(data) < 200:
         raise ValueError("Not enough data to compute SMA200; need ≥200 trading days.")
     data.index.name = "Date"
