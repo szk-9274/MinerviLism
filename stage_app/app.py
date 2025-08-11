@@ -171,8 +171,8 @@ def main() -> None:
 
     try:
         with plot_area.container():
-            st.caption("Loading…")
-            with st.spinner(f"Loading {ticker}…"):
+            st.caption("描画中です…")
+            with st.spinner("Loading..."):
                 # 1) データ取得（表示よりも長めに取得して指標計算に利用）
                 display_days = int(years * 365)
                 fetch_days = display_days + 400
