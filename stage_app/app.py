@@ -137,8 +137,9 @@ def main() -> None:
     try:
         # 1) データ取得（表示よりも長めに取得して指標計算に利用）
         with st.spinner("Downloading data..."):
-            lookback_days = int(years * 365)
-            data = cached_fetch(ticker, lookback_days=lookback_days)
+            display_days = int(years * 365)
+            fetch_days = display_days + 400
+            data = cached_fetch(ticker, lookback_days=fetch_days)
         pbar.progress(int(1 * 100 / steps))
 
         # 2) 指標計算（Closeベース）
@@ -165,7 +166,7 @@ def main() -> None:
                 display_end = df_plot.index.max()
                 # Trim only after indicators and stages are computed so the
                 # warm-up period fetched in ``fetch_price_data`` is preserved.
-                display_start = display_end - pd.Timedelta(days=lookback_days)
+                display_start = display_end - pd.Timedelta(days=display_days)
                 df_plot = df_plot[(df_plot.index >= display_start) & (df_plot.index <= display_end)]
                 fig = build_chart(df_plot, ticker)
                 st.plotly_chart(fig, use_container_width=True)

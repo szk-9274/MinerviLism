@@ -1,7 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ def fetch_price_data(
     ticker: str,
     lookback_days: int = 365,
     calc_lookback_buffer: int = 300,
+    slope_window: int = 20,
 ) -> pd.DataFrame:
     """Return OHLC data for the requested lookback window.
 
@@ -25,13 +26,16 @@ def fetch_price_data(
     buffer`` specifies how many extra calendar days of history to fetch for
     this warm‑up period.  Callers should perform indicator calculations on
     the full returned frame and only slice to the desired display window at
-    the end.  If a caller provides a smaller buffer, at least 200 days of
-    warm‑up data will still be fetched.
+    the end.  ``slope_window`` is used to determine the minimum amount of
+    warm‑up data needed so the first visible day can have a valid 200MA
+    slope; at least ``200 + slope_window - 1`` warm‑up trading days are
+    ensured.
     """
-    if calc_lookback_buffer < 200:
-        calc_lookback_buffer = 200
+    need = 200 + slope_window - 1
+    if calc_lookback_buffer < need:
+        calc_lookback_buffer = need
 
-    end = datetime.utcnow()
+    end = datetime.now(UTC)
     start = end - timedelta(days=lookback_days + calc_lookback_buffer)
 
     # Ticker.history caches aggressively and is awkward to monkeypatch during
@@ -98,8 +102,11 @@ def fetch_price_data(
 
     # ここで「tail(252)」はしない！サイドバーの年数ぶんそのまま返す
 
-    if len(data) < 200:
-        raise ValueError("Not enough data to compute SMA200; need ≥200 trading days.")
+    if len(data) < need:
+        raise ValueError(
+            "Not enough data to compute SMA200 and its slope; "
+            f"need ≥{need} trading days."
+        )
     data.index.name = "Date"
     return data
 

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 import pandas as pd
 import pytest
 
@@ -28,7 +28,7 @@ def _save_debug(df: pd.DataFrame, name: str, columns: list[str]) -> Path:
 def _run_continuity(cfg: dict) -> None:
     years = cfg["years"]
     exp = cfg["expect"]
-    lookback = years * 365
+    lookback = years * 365 + 400
     df = fetch_price_data(cfg["ticker"], lookback_days=lookback)
     df = compute_indicators(df)
     df["Stage"] = classify_stages(df)
@@ -63,7 +63,8 @@ def _run_stage_window(cfg: dict) -> None:
     exp = cfg["expect"]
     start = pd.to_datetime(window["start"])
     end = pd.to_datetime(window["end"])
-    lookback = (datetime.utcnow().date() - start.date()).days
+    utc_today = datetime.now(UTC).date()
+    lookback = (utc_today - start.date()).days + 400
     df = fetch_price_data(cfg["ticker"], lookback_days=lookback)
     df = compute_indicators(df)
     df["Stage"] = classify_stages(df)
