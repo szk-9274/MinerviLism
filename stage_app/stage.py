@@ -13,18 +13,19 @@ STAGE_COLORS = {1: "gray", 2: "green", 3: "orange", 4: "red"}
 
 def fetch_price_data(
     ticker: str,
-    lookback_days: int = 380,
-    calc_lookback_buffer: int = 300,
+    lookback_days: int = 365,
+    calc_lookback_buffer: int = 220,
 ) -> pd.DataFrame:
     """Return OHLC data for the requested lookback window.
 
-    ``lookback_days`` controls how much recent history the caller is
-    interested in displaying.  Long-term indicators such as the 200-day
-    moving average require additional prior data to compute.  To ensure
-    these indicators are available from the first visible day, this function
-    automatically fetches ``calc_lookback_buffer`` extra calendar days of
-    history.  The caller can then trim the returned DataFrame to the desired
-    window after computing indicators.
+    ``lookback_days`` is the amount of recent history the caller intends to
+    *display* (e.g. one year's worth of data).  Technical indicators such as
+    the 200‑day moving average and its slope require additional lookback in
+    order to be computed for the very first visible day.  ``calc_lookback_
+    buffer`` specifies how many extra calendar days of history to fetch for
+    this warm‑up period.  Callers should perform indicator calculations on
+    the full returned frame and only slice to the desired display window at
+    the end.
     """
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days + calc_lookback_buffer)
@@ -108,7 +109,10 @@ def _sma_slope(series: pd.Series, window: int) -> pd.Series:
     def _slope(y: np.ndarray) -> float:
         return np.polyfit(x, y, 1)[0]
 
-    return series.rolling(window).apply(_slope, raw=True)
+    # ``min_periods=2`` allows the slope calculation to start earlier, reducing
+    # the number of initial ``NaN`` values that would otherwise ripple through
+    # subsequent Stage classification.
+    return series.rolling(window, min_periods=2).apply(_slope, raw=True)
 
 
 def compute_indicators(data: pd.DataFrame, slope_window: int = 20) -> pd.DataFrame:
