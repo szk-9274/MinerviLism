@@ -17,6 +17,9 @@ def main() -> None:
 def classify(
     ticker: str = typer.Option(..., help="Ticker symbol"),
     csv_out: Path = typer.Option(..., help="Output CSV file"),
+    slope_smooth_window: int = typer.Option(
+        5, "--slope-smooth-window", help="Rolling window to smooth 200MA slope"
+    ),
     suppress_warnings: bool = typer.Option(
         False, "--suppress-warnings", help="Silence warnings"
     ),
@@ -26,7 +29,7 @@ def classify(
         warnings.filterwarnings("ignore")
     data = fetch_price_data(ticker)
     df = compute_indicators(data)
-    df["Stage"] = classify_stages(df)
+    df["Stage"] = classify_stages(df, slope_smooth_window=slope_smooth_window)
     df[["Close", "SMA50", "SMA150", "SMA200", "Stage"]].dropna().to_csv(
         csv_out, index_label="Date"
     )

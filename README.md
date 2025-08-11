@@ -31,7 +31,8 @@ streamlit run stage_app/app.py
 ## Optional CLI
 
 ```bash
-python -m stage_app.cli classify --ticker SPY --csv-out stages_1y.csv --suppress-warnings
+python -m stage_app.cli classify --ticker SPY --csv-out stages_1y.csv \
+    --slope-smooth-window 5 --suppress-warnings
 ```
 
 ### Library use
@@ -44,7 +45,8 @@ from stage_app.stage import fetch_price_data, compute_indicators, classify_stage
 
 df = fetch_price_data("SPY", lookback_days=380)
 df = compute_indicators(df)
-df["Stage"] = classify_stages(df)
+# ``slope_smooth_window`` controls the rolling mean used for the 200MA slope.
+df["Stage"] = classify_stages(df, slope_smooth_window=5)
 ```
 
 `df` now contains the moving averages and a `Stage` column ready for analysis

@@ -91,3 +91,23 @@ def test_golden_windows(cfg: dict) -> None:
         _run_continuity(cfg)
     else:
         _run_stage_window(cfg)
+
+
+def test_slope_smooth_window() -> None:
+    idx = pd.date_range("2024-01-01", periods=5)
+    df = pd.DataFrame(
+        {
+            "Close": [110] * 5,
+            "SMA50": [100] * 5,
+            "SMA150": [100] * 5,
+            "SMA200": [100] * 5,
+            "Slope200": [3, 3, 3, -4, -4],
+            "High52w": [120] * 5,
+            "Low52w": [90] * 5,
+        },
+        index=idx,
+    )
+    default_stage = classify_stages(df).iloc[-1]
+    custom_stage = classify_stages(df, slope_smooth_window=3).iloc[-1]
+    assert default_stage == 2
+    assert custom_stage == 3

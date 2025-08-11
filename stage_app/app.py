@@ -114,6 +114,9 @@ def main() -> None:
     label = st.sidebar.selectbox("Ticker", list(CHOICES.keys()), index=0)
     ticker = CHOICES[label]
     years = st.sidebar.number_input("期間（年数）", 1, 10, 1, 1)
+    slope_smooth_window = st.sidebar.number_input(
+        "Slope smoothing window", 1, 50, 5, 1
+    )
     run_btn = st.sidebar.button("Run")
 
     st.sidebar.markdown("### Stage Colors")
@@ -145,7 +148,9 @@ def main() -> None:
 
         # 3) ステージ分類
         with st.spinner("Classifying stages..."):
-            df["Stage"] = classify_stages(df)
+            df["Stage"] = classify_stages(
+                df, slope_smooth_window=int(slope_smooth_window)
+            )
         pbar.progress(int(3 * 100 / steps))
 
         # 4) 描画
