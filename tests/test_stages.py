@@ -28,7 +28,7 @@ def _save_debug(df: pd.DataFrame, name: str, columns: list[str]) -> Path:
 def _run_continuity(cfg: dict) -> None:
     years = cfg["years"]
     exp = cfg["expect"]
-    lookback = years * 365 + 300
+    lookback = years * 365
     df = fetch_price_data(cfg["ticker"], lookback_days=lookback)
     df = compute_indicators(df)
     df["Stage"] = classify_stages(df)
@@ -63,7 +63,7 @@ def _run_stage_window(cfg: dict) -> None:
     exp = cfg["expect"]
     start = pd.to_datetime(window["start"])
     end = pd.to_datetime(window["end"])
-    lookback = (datetime.utcnow().date() - start.date()).days + 300
+    lookback = (datetime.utcnow().date() - start.date()).days
     df = fetch_price_data(cfg["ticker"], lookback_days=lookback)
     df = compute_indicators(df)
     df["Stage"] = classify_stages(df)
@@ -111,3 +111,23 @@ def test_slope_smooth_window() -> None:
     custom_stage = classify_stages(df, slope_smooth_window=3).iloc[-1]
     assert default_stage == 2
     assert custom_stage == 3
+
+
+def test_below200_margin_triggers_stage4() -> None:
+    idx = pd.date_range("2024-01-01", periods=5)
+    df = pd.DataFrame(
+        {
+            "Close": [80] * 5,
+            "SMA50": [100] * 5,
+            "SMA150": [100] * 5,
+            "SMA200": [100] * 5,
+            "Slope200": [0.1] * 5,
+            "High52w": [120] * 5,
+            "Low52w": [60] * 5,
+        },
+        index=idx,
+    )
+    stage_margin = classify_stages(df).iloc[-1]
+    stage_no_margin = classify_stages(df, below200_margin=0).iloc[-1]
+    assert stage_margin == 4
+    assert stage_no_margin == 1
