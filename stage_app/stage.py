@@ -137,7 +137,10 @@ def classify_stages(df: pd.DataFrame, slope_threshold: float = -1e-9) -> pd.Seri
     high52w = df["High52w"].squeeze()
     low52w  = df["Low52w"].squeeze()
 
-    stage = pd.Series(np.nan, index=df.index, dtype="float")
+    # ``Stage`` is a categorical indicator that only takes the values 1–4.
+    # Use pandas' nullable integer dtype so stages remain as integers while
+    # preserving missing values for days that don't meet any criteria.
+    stage = pd.Series(pd.NA, index=df.index, dtype="Int64")
 
     # Stage 2（厳格：52週条件あり）
     cond2_strict = (
