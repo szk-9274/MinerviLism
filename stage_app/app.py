@@ -118,6 +118,7 @@ def build_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
         fig.add_vrect(x0=x0, x1=x1, fillcolor=color, opacity=0.10, line_width=0, layer="below")
 
     fig.update_traces(
+        selector=dict(type="candlestick"),
         increasing_line_color="#26a69a",
         increasing_fillcolor="#26a69a",
         decreasing_line_color="#ef5350",
