@@ -147,8 +147,14 @@ def classify_stages(df: pd.DataFrame, slope_threshold: float = -1e-9) -> pd.Seri
     )
     stage[cond2_strict] = 2
 
-    # Stage 3（50/150の下、200の上、かつ傾き<=0） ← 優先順位を上げる
-    cond3 = (close < sma50) & (close < sma150) & (close >= sma200) & (slope <= slope_threshold)
+    # Stage 3（200MAの上で200MAが下向き）
+    #
+    # 以前は 50MA と 150MA の両方を下回った場合だけ Stage3 と判定していたが、
+    # それでは「200MA の上にいるが、50MA か 150MA のどちらか一方は上回って
+    # いる」という局面が未分類のまま ``NaN`` になってしまうことがあった。
+    # 200MA が下降している限り、そうしたケースも Stage3 とみなして良いため
+    # 判定を広げる。
+    cond3 = (close >= sma200) & (slope <= slope_threshold)
     stage[stage.isna() & cond3] = 3
 
     # Stage 4（200下＆下向き）
